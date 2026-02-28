@@ -1,0 +1,34 @@
+version: "3"
+services:
+  placeweb:
+    image: "username/placewebserver:latest"
+    deploy:
+      replicas: 1 
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: ".5"
+          memory: 100M
+    ports:
+      - "8080:8080"
+    networks:
+      - placenet
+  placesocketserver:
+    image: "username/placesocketserver:latest"
+    deploy:
+      replicas: 1 
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: ".5"
+          memory: 100M
+    ports:
+      - "8081:8081"
+    networks:
+      - placenet
+
+networks:
+  placenet:
+

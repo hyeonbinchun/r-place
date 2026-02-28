@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <title>r/place clone</title>
+
+    <script src="jquery-3.7.1.min.js"></script>
+    <script type="text/javascript">
+      // TODO: replace these with actual aws endpoints
+      const BOARD_URL = "https://<http-api-id>.execute-api.<region>.amazonaws.com/prod/board";
+      const WS_URL = "wss://<ws-api-id>.execute-api.<region>.amazonaws.com/prod";
+
+      let socket = null;
+
+      function drawPixel(x, y, r, g, b) {
+        const ctx = document.getElementById("canvas").getContext("2d");
+        ctx.fillStyle = "rgb(" + r + "," + g + "," + b + ")";
+        ctx.fillRect(x, y, 1, 1);
+      }
+
+      function loadBoard() {
+        return $.getJSON(BOARD_URL)
+          .done(function (data) {
+            const width = data.width;
+            const height = data.height;
+            const pixels = data.pixels;
+
+            if (!Array.isArray(pixels)) {
+              console.error("Invalid board from backend", data);
+              return;
+            }
+
+            const canvas = document.getElementById("canvas");
+            const ctx = canvas.getContext("2d");
+
+            canvas.width = width;
+            canvas.height = height;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // pixels[y][x] = { r,g,b }
+            for (let y = 0; y < pixels.length; y++) {
+              const row = pixels[y];
+              if (!Array.isArray(row)) continue;
+              for (let x = 0; x < row.length; x++) {
+                const cell = row[x];
+                if (!cell) continue;
+                const r = cell.r;
+                const g = cell.g;
+                const b = cell.b;
+                drawPixel(x, y, r, g, b);
+              }
+            }
+          })
+          .fail(function (jqXHR, textStatus, errorThrown) {
+            console.error("Failed to load board:", textStatus, errorThrown);
+          });
+      }
+
+      function connectWebSocket() {
+        socket = new WebSocket(WS_URL);
+
+        socket.onopen = function () {
+          console.log("WebSocket connected");
+          $("#sendButton").removeAttr("disabled");
+        };
+
+        socket.onclose = function (event) {
+          alert(
+            "WebSocket closed code:" +
+              event.code +
+              " reason:" +
+              event.reason +
+              " wasClean:" +
+              event.wasClean
+          );
+        };
+
+        socket.onerror = function (event) {
+          console.error("WebSocket error:", event);
+        };
+
+        socket.onmessage = function (event) {
+          try {
+            if (!event.data || event.data.trim() === "") {
+              console.warn("Received empty WebSocket message");
+              return;
+            }
+            
+            var o = JSON.parse(event.data);
+            // expected from backend: { x, y, r, g, b }
+            if (
+              Number.isInteger(o.x) &&
+              Number.isInteger(o.y) &&
+              Number.isInteger(o.r) &&
+              Number.isInteger(o.g) &&
+              Number.isInteger(o.b)
+            ) {
+              drawPixel(o.x, o.y, o.r, o.g, o.b);
+            } else {
+              console.warn("Invalid pixel data:", o);
+            }
+          } catch (e) {
+            console.error("Failed to parse WebSocket message:", event.data, e);
+          }
+        };
+      }
+
+      $(function () {
+        // Load initial board via HTTP
+        loadBoard().then(function () {
+          // Connect WebSocket after board is drawn
+          connectWebSocket();
+        });
+
+        // --- INPUT HANDLERS ---
+
+        // spam on mousemove function. use for testing if needed
+        /*
+        $("#canvas").mousemove(function (event) {
+          if (!socket || socket.readyState !== WebSocket.OPEN) return;
+          var rect = this.getBoundingClientRect();
+          var x = Math.floor(event.clientX - rect.left);
+          var y = Math.floor(event.clientY - rect.top);
+          var o = { action: "draw", x: x, y: y, r: 0, g: 0, b: 0 };
+          socket.send(JSON.stringify(o));
+        });
+        */
+
+        $("#setForm").submit(function (event) {
+          event.preventDefault();
+          if (!socket || socket.readyState !== WebSocket.OPEN) {
+            alert("WebSocket not connected");
+            return;
+          }
+
+          var o = {
+            x: parseInt($("#x").val(), 10),
+            y: parseInt($("#y").val(), 10),
+            r: parseInt($("#r").val(), 10),
+            g: parseInt($("#g").val(), 10),
+            b: parseInt($("#b").val(), 10),
+          };
+
+          socket.send(JSON.stringify(o));
+        });
+      });
+    </script>
+    <style>
+      body {
+        text-align: center;
+        overflow: hidden;
+        margin: 0px;
+        padding: 0px;
+      }
+      canvas {
+        border: 1px solid black;
+      }
+      input[type="number"] {
+        width: 3em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>r/place clone</h1>
+
+    <canvas id="canvas" width="250" height="250"></canvas>
+    <form id="setForm">
+      (
+      <input type="number" id="x" placeholder="x" min="0" max="250" />,
+      <input type="number" id="y" placeholder="y" min="0" max="250" /> ) &nbsp; &nbsp; &nbsp; (
+      <input type="number" id="r" placeholder="r" min="0" max="255" />,
+      <input type="number" id="g" placeholder="g" min="0" max="255" />,
+      <input type="number" id="b" placeholder="b" min="0" max="255" /> ) &nbsp; &nbsp; &nbsp;
+      <input id="sendButton" type="submit" name="set" value="set" disabled />
+    </form>
+  </body>
+</html>
+

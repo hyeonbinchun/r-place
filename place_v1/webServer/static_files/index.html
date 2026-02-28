@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Cache-Control"
+      content="no-cache, no-store, must-revalidate"
+    />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <title>r/place clone</title>
+
+    <script src="jquery-3.7.1.min.js"></script>
+    <script type="text/javascript">
+      var dim = 250;
+      var boardOffset = 0;
+      var initialBoardBuffer = null;
+
+      $(function () {
+        // socket = new WebSocket("ws://cslinux.utm.utoronto.ca:8001");
+        // socket = new WebSocket("ws://localhost:8001");
+        // socket = new WebSocket("ws://" + window.location.hostname + ":8081");
+        const socket = new WebSocket(
+          "wss://3naz13dlch.execute-api.us-east-1.amazonaws.com/production/",
+        );
+        socket.binaryType = "arraybuffer";
+
+        socket.onopen = function (event) {
+          $("#sendButton").removeAttr("disabled");
+          console.log("connected");
+        };
+
+        socket.onclose = function (event) {
+          alert(
+            "closed code:" +
+              event.code +
+              " reason:" +
+              event.reason +
+              " wasClean:" +
+              event.wasClean,
+          );
+        };
+
+        socket.onmessage = function (event) {
+          const data = Uint8Array.fromBase64(event.data);
+          if (data.length === 5) {
+            const x = data[0];
+            const y = data[1];
+            const r = data[2];
+            const g = data[3];
+            const b = data[4];
+
+            var context = document.getElementById("canvas").getContext("2d");
+            context.fillStyle = `rgb(${r},${g},${b})`;
+            context.fillRect(x, y, 1, 1);
+          } else if (data.length > 5) {
+            if (!initialBoardBuffer) {
+              initialBoardBuffer = new Uint8Array(dim * dim * 3);
+              boardOffset = 0;
+            }
+
+            initialBoardBuffer.set(data, boardOffset);
+            boardOffset += data.length;
+
+            if (boardOffset >= dim * dim * 3) {
+              var context = document.getElementById("canvas").getContext("2d");
+              const imageData = context.createImageData(dim, dim);
+              for (
+                let i = 0, j = 0;
+                i < initialBoardBuffer.length;
+                i += 3, j += 4
+              ) {
+                imageData.data[j] = initialBoardBuffer[i]; // R
+                imageData.data[j + 1] = initialBoardBuffer[i + 1]; //G
+                imageData.data[j + 2] = initialBoardBuffer[i + 2]; //B
+                imageData.data[j + 3] = initialBoardBuffer[i] = 255; // alpha we don't have
+              }
+              context.putImageData(imageData, 0, 0);
+
+              initialBoardBuffer = null;
+              boardOffset = 0;
+            }
+          } else {
+            console.warn("Unknown packet length:", data.length);
+          }
+        };
+
+        // Comment out the event handler below when in production
+        $("#canvas").mousemove(function (event) {
+          var x = event.pageX - this.offsetLeft;
+          var y = event.pageY - this.offsetTop;
+
+          const data = new Uint8Array(5);
+          data[0] = x;
+          data[1] = y;
+          data[2] = 0;
+          data[3] = 0;
+          data[4] = 0;
+
+          socket.send(data.toBase64());
+        });
+
+        $("#setForm").submit(function (event) {
+          event.preventDefault();
+          var o = {
+            x: parseInt($("#x").val()),
+            y: parseInt($("#y").val()),
+            r: parseInt($("#r").val()),
+            g: parseInt($("#g").val()),
+            b: parseInt($("#b").val()),
+          };
+
+          const data = new Uint8Array(5);
+          data[0] = o.x;
+          data[1] = o.y;
+          data[2] = o.r;
+          data[3] = o.g;
+          data[4] = o.b;
+
+          socket.send(data.toBase64());
+        });
+      });
+    </script>
+    <style>
+      body {
+        text-align: center;
+        align: center;
+        overflow: hidden;
+        margin: 0px;
+        padding: 0px;
+      }
+      canvas {
+        border: 1px solid black;
+      }
+      input[type="number"] {
+        width: 3em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>r/place clone</h1>
+
+    <canvas id="canvas" width="250" height="250"></canvas>
+    <form id="setForm">
+      (<input type="number" id="x" placeholder="x" min="0" max="250" />,
+      <input type="number" id="y" placeholder="y" min="0" max="250" />) &nbsp;
+      &nbsp; &nbsp; (<input
+        type="number"
+        id="r"
+        placeholder="r"
+        min="0"
+        max="255"
+      />, <input type="number" id="g" placeholder="g" min="0" max="255" />,
+      <input type="number" id="b" placeholder="b" min="0" max="255" />) &nbsp;
+      &nbsp; &nbsp;
+      <input type="submit" name="set" value="set" />
+    </form>
+  </body>
+</html>

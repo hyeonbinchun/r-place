@@ -1,0 +1,19 @@
+{
+  "name": "placeSocketServer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.940.0",
+    "@aws-sdk/client-s3": "^3.940.0",
+    "express": "^4.17.0",
+    "JSON": "^1.0.0",
+    "ws": "^6.1.2"
+  },
+  "type": "module"
+}

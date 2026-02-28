@@ -1,0 +1,50 @@
+r/place V3 Architecture
+
+There are 7 components:
+	1. CloudFront
+	2. S3
+	3. API Gateway
+	4. Lambda functions:
+    		1. WebSocket Handler
+   		2. Get Board
+    		3. Background
+
+	5. SQS
+	6. DynamoDB
+	7. VPC (NAT Gateway)
+
+
+External to VPC:
+
+	- CloudFront: CDN that serves static website files from S3
+	- S3: Stores static web assets (Frontend)
+	- API Gateway: Provides WebSocket API endpoint and potentially REST API endpoints 
+	- SQS: Message queue that decouple components (asynchronous processing)
+	- Lambda (Background): Processes queued messaged to persist pixel history to DynamoDB
+	- DynamoDB: Persistent storage for complete pixel placement history
+
+
+VPC - Private Subnet
+
+	- Lambda(WebSocket Handler): Manages WebSocket connections - handles connect, disconnect, and incoming pixel placement messages from users
+	- Lambda(Get Board): Returns the current board state when users first load the page
+	- ElastiCache(Redis or ValKey): In-memory data store that maintains:
+    		- Active WebSocket connection IDs for broadcasting updates
+    		- Current board state for fast reads
+    		- User rate-limiting data (timestamp per user to enforce 5 min rule)
+    		- Recent pixel history buffer before persisting to database
+
+
+VPC - Public Subnet
+
+	- NAT Gateway: Enables Lambda function in the private subnet to make outbound internet connections (needed when Lambdas calls SQS)
+
+
+Architecture Flow
+
+	1. User loads website -> CloudFront serves static files from S3
+	2. User connects -> API Gateway -> Lambda(WebSocket) stores connection ID in ElastiCache
+	3. User requests board -> API Gateway -> Lambda(get board) retrieves current state from ElastiCache
+	4. User places pixel -> API Gateway -> Lambda(WebSocket) validate rate limit via ElasticCache -> Updates ElastiCache board -> Broadcasts to all connected clients via stored connection ID -> SQS (send message about pixel change)
+	5. SQS -> Lambda(Background) persists to DynamoDB
+
