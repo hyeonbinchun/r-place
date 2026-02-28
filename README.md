@@ -124,19 +124,3 @@ cd place_v3
 cd socketServer && npm start &
 cd webServer && npm start &
 ```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📄 License
-
-This project is open source and available under the MIT License.
-
----
-
-*Inspired by Reddit's r/Place - a social experiment in collaborative creation.*
